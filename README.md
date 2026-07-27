@@ -3,7 +3,7 @@ DATA201 | DATA422 Group Project
 
 ## Team Members
 - Muhammad Aliff Mikhail Bin Norkamarulazhar
-- 1
+- Asfa Hurin Binti Asmawi
 - 2
 - 3
 
