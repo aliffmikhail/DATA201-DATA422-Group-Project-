@@ -1,0 +1,32 @@
+DATA422 - Team Rules
+
+Team Members:
+1. Dron Dalvi
+2. abdulrahman
+3. aliff mikhail 
+4. asfa
+
+Communication:
+- We will communicate using WhatsApp.
+- Important updates will be shared in the group chat.
+
+Meetings:
+- We will meet after class or online when required.
+- If someone cannot attend, they will inform the group in advance.
+
+Team Rules:
+- Respect everyone's ideas.
+- Complete assigned tasks before the deadline.
+- Inform the team if you need help.
+- Keep the GitHub repository updated.
+- Commit changes with clear commit messages.
+- Create a new branch before making major changes.
+
+GitHub Workflow:
+1. Pull the latest changes before starting work.
+2. Make your changes.
+3. Commit your work.
+4. Push your changes.
+5. Create a Pull Request if working on a branch.
+
+Created for DATA422 Deliverable 1.
