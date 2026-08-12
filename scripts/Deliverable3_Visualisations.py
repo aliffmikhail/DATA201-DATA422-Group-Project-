@@ -76,7 +76,7 @@ plt.close()
 
 plt.figure(figsize=(8, 5))
 plt.hist(nz_df[PRICE_COL].dropna(), bins=50,range=(0, 1000), alpha=0.5, label="New Zealand")
-plt.hist(chc_df[PRICE_COL].dropna(), bins=50, alpha=0.5, label="Christchurch City")
+plt.hist(chc_df[PRICE_COL].dropna(), bins=50,range=(0, 1000), alpha=0.5, label="Christchurch City")
 plt.title("NZ vs Christchurch Airbnb Price Distribution")
 plt.xlabel("Price ($)")
 plt.ylabel("Number of Listings")
