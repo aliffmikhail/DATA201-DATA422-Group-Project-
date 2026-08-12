@@ -221,3 +221,4 @@ __marimo__/
 # Raw Airbnb datasets are downloaded separately by each team member
 data/raw/
 data/processed/
+outputs/
