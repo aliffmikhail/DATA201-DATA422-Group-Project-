@@ -12,9 +12,8 @@ CHRISTCHURCH_PATH = "data/processed/christchurch_listings_2025_10_to_2026_06.csv
 PRICE_COL = "price"
 REVIEWS_COL = "number_of_reviews"
 LAST_REVIEW_COL = "last_review"
-CITY_COL = "neighbourhood_group"       # or "city" depending on your dataset
-CHRISTCHURCH_LABEL = "Christchurch City"  # UPDATE: exact string used in your data
-
+CITY_COL = "neighbourhood_group"       
+CHRISTCHURCH_LABEL = "Christchurch City"  
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -58,7 +57,7 @@ chc_df = clean_price(chc_df)
 print("Generating price histograms...")
 
 plt.figure(figsize=(8, 5))
-nz_df[PRICE_COL].dropna().plot(kind="hist", bins=50, edgecolor="black")
+nz_df[PRICE_COL].dropna().plot(kind="hist", bins=50,range=(0, 1000), edgecolor="black")
 plt.title("New Zealand Airbnb Price Distribution")
 plt.xlabel("Price ($)")
 plt.ylabel("Number of Listings")
@@ -67,7 +66,7 @@ plt.savefig(OUTPUT_DIR / "nz_price_histogram.png")
 plt.close()
 
 plt.figure(figsize=(8, 5))
-chc_df[PRICE_COL].dropna().plot(kind="hist", bins=50, edgecolor="black", color="orange")
+chc_df[PRICE_COL].dropna().plot(kind="hist", bins=50, range=(0, 1000),edgecolor="black", color="orange")
 plt.title("Christchurch City Airbnb Price Distribution")
 plt.xlabel("Price ($)")
 plt.ylabel("Number of Listings")
@@ -76,7 +75,7 @@ plt.savefig(OUTPUT_DIR / "christchurch_price_histogram.png")
 plt.close()
 
 plt.figure(figsize=(8, 5))
-plt.hist(nz_df[PRICE_COL].dropna(), bins=50, alpha=0.5, label="New Zealand")
+plt.hist(nz_df[PRICE_COL].dropna(), bins=50,range=(0, 1000), alpha=0.5, label="New Zealand")
 plt.hist(chc_df[PRICE_COL].dropna(), bins=50, alpha=0.5, label="Christchurch City")
 plt.title("NZ vs Christchurch Airbnb Price Distribution")
 plt.xlabel("Price ($)")
@@ -99,7 +98,7 @@ chc_df[LAST_REVIEW_COL] = pd.to_datetime(chc_df[LAST_REVIEW_COL], errors="coerce
 chc_df["days_since_last_review"] = (REFERENCE_DATE - chc_df[LAST_REVIEW_COL]).dt.days
 
 plt.figure(figsize=(8, 5))
-chc_df["days_since_last_review"].dropna().plot(kind="hist", bins=50, edgecolor="black", color="green")
+chc_df["days_since_last_review"].dropna().plot(kind="hist", bins=50,range=(0, 1000), edgecolor="black", color="green")
 plt.title("Days Since Last Review - Christchurch City")
 plt.xlabel("Days Since Last Review")
 plt.ylabel("Number of Listings")
