@@ -30,9 +30,3 @@ combined_df = pd.concat(dataframes, ignore_index=True)
 
 # Save the combined dataset
 combined_df.to_csv(output_file, index=False)
-
-# Verification checks requested in the guide
-print("Concatenation complete!")
-print(f"Total rows: {len(combined_df)}")  # Should be 28,795
-print("Months included:")
-print(combined_df["month_year"].value_counts().sort_index())
