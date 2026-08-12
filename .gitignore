@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# DATA201|DATA422 project data
+# Raw Airbnb datasets are downloaded separately by each team member
+data/raw/
+data/processed/
