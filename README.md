@@ -77,12 +77,10 @@ The source describes private-sector tenancy bonds, organised by tenancy start da
 
 ### Cleaning steps and row counts:
 | Num | Step | Rows / effect |
-| ----- | ----- | ----- | ----- |
+| ----- | ----- | ----- |
 | 1 | Original dataset | 226,080 rows x 12 columns. |
-| 2 | Convert TimeFrame; filter Oct 2025-Jun 2026 | 27,212 rows retained; 198,868 excluded. Dates present: 2025-10-01, 2026-01-01,
-2026-04-01. |
-| 3 | Remove missing Location Id | 94 rows excluded because no geographic match is possible; these also lack median rent.
-27,118 rows remain. |
+| 2 | Convert TimeFrame; filter Oct 2025-Jun 2026 | 27,212 rows retained; 198,868 excluded. Dates present: 2025-10-01, 2026-01-01, 2026-04-01. |
+| 3 | Remove missing Location Id | 94 rows excluded because no geographic match is possible; these also lack median rent. 27,118 rows remain. |
 | 4 | Exclude Location Id = -99 | 127 more records excluded from the ordinary-location dataset because mapping is unverified. Expected final: 26,991 rows x 12 columns. |
 
 ### Missing and special values:
