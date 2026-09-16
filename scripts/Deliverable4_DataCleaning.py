@@ -45,10 +45,8 @@ def clean_airbnb_dataset(file_path, output_path):
     final_rows = len(df_final)
     outliers_lost = rows_after_null_drop - final_rows
 
-    # 7. Convert Price to Clean Integer using native Nullable Int64 to avoid type casting traps
-    df_final["price"] = df_final["price"].round().astype("Int64")
 
-    # 8. Print Executed Decisions Log
+    # 7. Print Executed Decisions Log
     print("\n" + "=" * 50)
     print("📊 DATA CLEANING AUDIT REPORT")
     print("=" * 50)
@@ -60,7 +58,7 @@ def clean_airbnb_dataset(file_path, output_path):
     print(f"Total Data Retention Rate:   {(final_rows / initial_rows) * 100:.2f}%")
     print("=" * 50)
 
-    # 9. Export Cleaned Dataset
+    # 8. Export Cleaned Dataset
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df_final.to_csv(output_path, index=False)
     print(f"💾 Cleaned dataset successfully saved to: {output_path}\n")
