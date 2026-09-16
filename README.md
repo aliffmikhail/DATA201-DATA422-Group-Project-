@@ -57,7 +57,7 @@ Columns like neighbourhood_group, last_review, reviews_per_month, and license ma
 The source describes private-sector tenancy bonds, organised by tenancy start date and SA2-2019 geographical definitions. It documents rounding to base three and suppression where fewer than five bonds meet a selection. These disclosures do not establish the cause of any particular missing value.
 
 ## Data Dictionary:
-| Column Num | Column | Data Type | Description |
+| Column Num | Column | Data Type | Working Description |
 | ----- | ----- | ----- | ----- |
 | 1 | TimeFrame | string | Reporting reference date; exact quarter coverage not confirmed. |
 | 2 | Location Id | float64 | Geographic identifier; special -99 code not mapped. |
