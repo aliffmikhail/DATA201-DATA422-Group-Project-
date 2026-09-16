@@ -128,24 +128,53 @@ if (
 
 
 # ==========================================
-# 5. REMOVE MISSING LOCATION IDs
+# 5. CLEAN LOCATION IDENTIFIERS
 # ==========================================
 
 print("\n========== CLEANING ==========")
 
-# Missing locations cannot support geographic matching.
-# These records also have missing median rents.
-# Other missing values and special categories are preserved.
-
+# Remove records without Location Id
 cleaned = bond.dropna(subset=["Location Id"]).copy()
 
-print("Rows before:", len(bond))
-print("Rows removed:", len(bond) - len(cleaned))
-print("Rows remaining:", len(cleaned))
+print("Missing Location Id rows removed:",
+      len(bond) - len(cleaned))
+
+# Exclude unmapped special location code from location-level data
+special_locations = (cleaned["Location Id"] == -99).sum()
+
+cleaned = cleaned[
+    cleaned["Location Id"] != -99
+].copy()
+
+print("Special Location Id (-99) rows removed:",
+      special_locations)
+
+print("Final rows:", len(cleaned))
 
 print("\nRemaining missing values:")
 print(cleaned.isna().sum())
 
+# Check uniqueness of the proposed record identifiers
+
+key_columns = [
+    "TimeFrame",
+    "Location Id",
+    "Dwelling Type",
+    "Number Of Beds"
+]
+
+key_duplicates = cleaned.duplicated(
+    subset=key_columns
+).sum()
+
+print("\nDuplicate key combinations:", key_duplicates)
+
+if key_duplicates > 0:
+    raise ValueError("Duplicate key combinations require investigation.")
+
+print("\nMedian rent range:")
+print("Minimum:", cleaned["Median Rent"].min())
+print("Maximum:", cleaned["Median Rent"].max())
 
 # ==========================================
 # 6. SAVE AND VERIFY
