@@ -90,15 +90,45 @@ print("Price histograms saved.")
 # ---------------------------------------------------------------------------
 # Step 4: days_since_last_review
 # ---------------------------------------------------------------------------
-print("Calculating days_since_last_review...")
 
-REFERENCE_DATE = pd.Timestamp(datetime.today().date())
+# ---------------------------------------------------------------------------
+# Step 4: days_since_last_review (using per-month scrape dates)
+# ---------------------------------------------------------------------------
+print("Calculating days_since_last_review using per-month scrape dates...")
 
-chc_df[LAST_REVIEW_COL] = pd.to_datetime(chc_df[LAST_REVIEW_COL], errors="coerce")
-chc_df["days_since_last_review"] = (REFERENCE_DATE - chc_df[LAST_REVIEW_COL]).dt.days
+# Map each month's processed file to its actual scrape date
+SCRAPE_DATES = {
+    "christchurch_2025_10.csv": "2025-10-05",
+    "christchurch_2025_11.csv": "2025-11-07",
+    "christchurch_2025_12.csv": "2025-12-11",
+    "christchurch_2026_01.csv": "2026-01-16",
+    "christchurch_2026_02.csv": "2026-02-13",
+    "christchurch_2026_03.csv": "2026-03-17",
+    "christchurch_2026_04.csv": "2026-04-16",
+    "christchurch_2026_05.csv": "2026-05-23",
+    "christchurch_2026_06.csv": "2026-06-19",
+}
+
+PROCESSED_DIR = Path("data/processed")
+
+monthly_frames = []
+for filename, scrape_date in SCRAPE_DATES.items():
+    filepath = PROCESSED_DIR / filename
+    if filepath.exists():
+        month_df = pd.read_csv(filepath)
+        month_df["scrape_date"] = pd.to_datetime(scrape_date)
+        monthly_frames.append(month_df)
+    else:
+        print(f"Warning: {filepath} not found, skipping.")
+
+tagged_df = pd.concat(monthly_frames, ignore_index=True)
+tagged_df[LAST_REVIEW_COL] = pd.to_datetime(tagged_df[LAST_REVIEW_COL], errors="coerce")
+tagged_df["days_since_last_review"] = (tagged_df["scrape_date"] - tagged_df[LAST_REVIEW_COL]).dt.days
+
+
 
 plt.figure(figsize=(8, 5))
-chc_df["days_since_last_review"].dropna().plot(kind="hist", bins=50,range=(0, 1000), edgecolor="black", color="green")
+tagged_df["days_since_last_review"].dropna().plot(kind="hist", bins=50,range=(0, 1000), edgecolor="black", color="green")
 plt.title("Days Since Last Review - Christchurch City")
 plt.xlabel("Days Since Last Review")
 plt.ylabel("Number of Listings")
@@ -130,7 +160,7 @@ else:
 # ---------------------------------------------------------------------------
 print("\n--- Sanity Checks ---")
 print(f"NZ price range: {nz_df[PRICE_COL].min()} - {nz_df[PRICE_COL].max()}")
-print(f"Christchurch price range: {chc_df[PRICE_COL].min()} - {chc_df[PRICE_COL].max()}")
-print(f"Missing values in days_since_last_review: {chc_df['days_since_last_review'].isna().sum()}")
+print(f"Christchurch price range: {tagged_df[PRICE_COL].min()} - {tagged_df[PRICE_COL].max()}")
+print(f"Missing values in days_since_last_review: {tagged_df['days_since_last_review'].isna().sum()}")
 print("Plots saved to:", OUTPUT_DIR.resolve())
 print("Done.")
