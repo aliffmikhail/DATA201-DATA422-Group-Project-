@@ -50,16 +50,16 @@ DATA201 | DATA422 Group Project
 ## Airbnb Listings Data Cleaning
 - Objective: Prepare the Airbnb dataset for comparative price metric analysis.
 - Volume Change: Reduced from 28,795 rows to 18,080 rows.
-- Temporal Scope: Restricted to March through November due to systemic missing data in peak summer records.
+- Temporal Scope: Covers the cleaned Christchurch Airbnb observations from October 2025 through June 2026.
 - Feature Reduction: Zero-variance and fully empty columns removed to streamline downstream analysis.
 
 ## Changes Made & Cleaning Justification
 1. Price Filtering:
    - Dropped all rows with missing price values (imputing 37% of the dataset would distort downstream variance).
    - Filtered extreme price outliers (records >$1,500 or identified via IQR) to remove data entry typos and non-standard luxury properties.
-2. Temporal Scope Adjustment (month_year):
-   - Identified 100% data was loss for summer peak months (Dec 2025, Jan 2026, Feb 2026) due to collection failure.
-   - Explicitly restricted dataset scope to March-November.
+2. Temporal Scope (month_year):
+   - Retained the cleaned Christchurch Airbnb observations covering October 2025 through June 2026.
+   - The month_year field is later used in Deliverable 5 to align Airbnb observations with rental bond reporting periods.
 3. Column Deletions:
    - Removed license due to 100% missing values (zero informational value).
    - Removed neighbourhood_group as it contained a constant value ("Christchurch City") across all records (zero variance). 
@@ -69,9 +69,9 @@ DATA201 | DATA422 Group Project
    - Imputed a single missing host_name value with the string "Unknown". 
 
 ## Expected Output
-- Dataset Size: Final clean dataset contains 18,080 rows (reduction of 10,667 missing-price rows and ~150-300 outlier rows).
+- Dataset Size: Final clean dataset contains 18,080 rows after missing-price and outlier filtering.
 - Feature Count: Two fewer columns following the removal of license and neighbourhood_group.
-- Analytical Scope: Comparative analysis is strictly bounded to March-November pricing patterns.
+- Analytical Scope: Comparative analysis uses the cleaned Airbnb observations from October 2025 through June 2026.
 - Data Integrity: Protected unique identifier keys from rounding errors and logically handled missing numeric metrics without row inflation.
 
 
@@ -94,7 +94,7 @@ DATA201 | DATA422 Group Project
 | 2 | Location Id | float64 | Statistical Area 2 (SA2 2019) geographic code (includes special code -99 for unassigned locations). |
 | 3 | Dwelling Type | string | Property structure category (ALL, Apartment, Boarding House, Flat, House, Room). |
 | 4 | Number Of Beds | string | Bedroom count per listing (1, 2, 3, 4, 5, 5+, ALL, or missing/null). |
-| 5 | Total Bonds | int64 | otal number of tenancy bonds lodged with Tenancy Services during the reference period. |
+| 5 | Total Bonds | int64 | Total number of tenancy bonds lodged with Tenancy Services during the reference period. |
 | 6 | Active Bonds | int64 | Cumulative count of active bonds held at the end of the reference period. |
 | 7 | Closed Bonds | int64 | Total number of tenancy bonds refunded/closed during the reference period. |
 | 8 | Median Rent | float64 | Median weekly rental price in NZD ($). |
@@ -126,7 +126,150 @@ DATA201 | DATA422 Group Project
 - Outlier Policy: Genuine extreme rental values are preserved to reflect true market variation rather than treated as errors.
 - Export and Reproduction
 Output Path: data/processed/rental_bond_cleaned_2025_10_to_2026_04.csv
-Expected Dimensions: 26,991 rows × 12 columns (pending final script verification execution).
+Final Dimensions: 26,991 rows × 12 columns.
 
+# Deliverable 5 - Airbnb and Rental Bond Integration
 
+## Geographic Area Mapping
 
+Airbnb listings contain latitude and longitude coordinates but do not contain the `Location Id` used by the rental bond dataset.
+
+`scripts/area_code.py` uses the Koordinates Query API to obtain Stats NZ SA2 area codes from Airbnb coordinates.
+
+The script:
+
+1. loads the Christchurch Airbnb data,
+2. extracts unique latitude/longitude pairs,
+3. queries Koordinates for an SA2 area code,
+4. saves the coordinate-to-area-code lookup,
+5. merges the area codes back onto the Airbnb records.
+
+The Koordinates API key is read from the local `KOORDINATES_API_KEY` environment variable and is not stored in the repository.
+
+Saved mapping files:
+
+- `Christchurch_coordinate_area_lookup.csv`
+- `Christchurch_Airbnb_with_area_codes.csv`
+
+Mapping validation:
+
+- 3,957 unique coordinate pairs
+- 0 duplicate coordinate pairs
+- 0 missing area codes in the lookup
+- 0 missing area codes after transferring the mapping onto the final cleaned Airbnb dataset
+
+The saved area-code results are reused rather than repeating the API requests.
+
+## Datasets Used
+
+Airbnb:
+
+`data/processed/christchurch_listings_2025_10_to_2026_06_cleaned.csv`
+
+- 18,080 cleaned listing-month observations
+
+Rental bonds:
+
+`data/processed/rental_bond_cleaned_2025_10_to_2026_04.csv`
+
+- 26,991 rows
+- 12 columns
+
+## Time Alignment
+
+Airbnb data are monthly while the rental bond data use reporting reference dates.
+
+The Airbnb months are aligned as follows:
+
+| Airbnb months | Bond TimeFrame |
+| --- | --- |
+| Oct-Dec 2025 | 2025-10-01 |
+| Jan-Mar 2026 | 2026-01-01 |
+| Apr-Jun 2026 | 2026-04-01 |
+
+All 18,080 Airbnb observations were successfully assigned a TimeFrame.
+
+## Rental Bond Preparation
+
+The bond dataset contains multiple dwelling and bedroom categories for the same location and reporting period.
+
+For the general location-level comparison, the analysis uses records where:
+
+- `Dwelling Type = ALL`
+- `Number Of Beds = ALL`
+
+This produces one overall bond record per location and reporting period and avoids averaging subgroup medians or summing overlapping categories.
+
+Validation:
+
+- 4,865 location-time records
+- 0 duplicate `Location Id + TimeFrame` combinations
+- 0 missing median rent values
+
+Weekly median rent is converted to a daily equivalent:
+
+`Daily Rent = Median Rent / 7`
+
+## Dataset Join
+
+`scripts/Deliverable5_areaoperations.py` joins Airbnb and rental bond data using:
+
+- Airbnb `area_code` / bond `Location Id`
+- `TimeFrame`
+
+A left join is first used for validation so unmatched Airbnb records remain visible.
+
+Join results:
+
+- Airbnb rows before join: 18,080
+- Rows after join: 18,080
+- Matched rows: 13,821
+- Unmatched rows: 4,259
+- Match rate: 76.4%
+
+The unchanged row count confirms that the join does not multiply Airbnb observations.
+
+Only matched records are used for the rental price comparison.
+
+## Christchurch Central Airbnb Price
+
+Christchurch Central uses area code `326600`.
+
+Using the cleaned Airbnb dataset:
+
+- Median Airbnb nightly price: **NZ$238**
+
+## Short-Term vs Long-Term Rental Price Gap
+
+For each matched Airbnb observation:
+
+`Rent Gap = Airbnb Nightly Price - Daily Long-Term Rent`
+
+The analysis calculates:
+
+- `Median_Gap` - typical price gap within an area
+- `Maximum_Gap` - largest single observed price gap
+- `Observations` - number of matched observations supporting the result
+
+Current results:
+
+- Area `322800` has the largest median gap at approximately **NZ$243.64 per night**, based on 6 observations.
+- Area `326100` contains the largest single observed gap at **NZ$1,435 per night**, based on 201 observations.
+
+The number of observations should be considered when interpreting area-level results.
+
+## Airbnb and Rental Bond Counts
+
+Airbnb supply is represented by the number of unique Airbnb listing IDs within each area and reporting period.
+
+Long-term rental activity is represented using `Active Bonds` from the corresponding overall bond record.
+
+`Active Bonds` refers to active rental bonds and should not be interpreted as the number of vacant or currently available rental properties.
+
+## Limitations
+
+The Airbnb mapping uses the Stats NZ SA2 2026 geographic field, while the rental bond source documentation refers to SA2-2019 geographic definitions.
+
+This difference may contribute to unmatched area codes and should be considered when interpreting the 76.4% join rate.
+
+Airbnb prices are advertised nightly short-term accommodation prices, while rental bond median rents represent weekly long-term rental prices. Dividing weekly rent by seven provides a daily comparison unit, but the two values still represent different rental markets.
