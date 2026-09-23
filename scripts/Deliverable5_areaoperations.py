@@ -4,43 +4,120 @@ import numpy as np
 # Import packages
 # (pandas + numpy cover dplyr-equivalent functionality)
 
-# Read in the csvs
-bnb = pd.read_csv("Christchurch_Airbnb_with_area_codes.csv")
-tenancy = pd.read_csv("data/raw/tenancy_final.csv")
-
-# Convert into uniform time format
-time_map = {
-    "Oct-25": "1/10/2025", "Nov-25": "1/10/2025", "Dec-25": "1/10/2025",
-    "Jan-26": "1/01/2026", "Feb-26": "1/01/2026", "Mar-26": "1/01/2026",
-    "Apr-26": "1/04/2026", "May-26": "1/04/2026", "Jun-26": "1/04/2026",
-}
-bnb2 = bnb.copy()
-bnb2["TimeFrame"] = bnb2["month_year"].map(time_map)
-print(bnb2.columns.tolist())
-
-# Make a new dataset of all unique combinations of Time + Location ID,
-# add weekly rent, then convert to nightly rent to match the Airbnb dataset
-tenancy2 = tenancy[
-    tenancy["Location.Id"].notna() & (tenancy["Location.Id"] != -99)
-]
-
-tenancy2 = (
-    tenancy2.groupby(["Location.Id", "TimeFrame"], as_index=False)
-    .agg(
-        Weekly_Rent=("Median.Rent", "mean"),
-        Active_Bonds=("Active.Bonds", "sum"),
-    )
+# Load final cleaned Airbnb data
+bnb = pd.read_csv(
+    "data/processed/christchurch_listings_2025_10_to_2026_06_cleaned.csv"
 )
 
+# Reuse the area codes that were already queried from Koordinates
+mapped_bnb = pd.read_csv("Christchurch_Airbnb_with_area_codes.csv")
+
+area_codes = (
+    mapped_bnb[["id", "month_year", "area_code"]]
+    .drop_duplicates(["id", "month_year"])
+)
+
+bnb = bnb.merge(
+    area_codes,
+    on=["id", "month_year"],
+    how="left",
+    validate="many_to_one"
+)
+
+# Load final cleaned bond data from Deliverable 4
+tenancy = pd.read_csv(
+    "data/processed/rental_bond_cleaned_2025_10_to_2026_04.csv"
+)
+
+# Keep the existing D5 naming style
+tenancy = tenancy.rename(columns={
+    "Location Id": "Location.Id",
+    "Dwelling Type": "Dwelling.Type",
+    "Number Of Beds": "Number.Of.Beds",
+    "Median Rent": "Median.Rent",
+    "Active Bonds": "Active.Bonds"
+})
+
+time_map = {
+    "2025-10": "2025-10-01",
+    "2025-11": "2025-10-01",
+    "2025-12": "2025-10-01",
+
+    "2026-01": "2026-01-01",
+    "2026-02": "2026-01-01",
+    "2026-03": "2026-01-01",
+
+    "2026-04": "2026-04-01",
+    "2026-05": "2026-04-01",
+    "2026-06": "2026-04-01"
+}
+
+bnb2 = bnb.copy()
+bnb2["TimeFrame"] = bnb2["month_year"].map(time_map)
+
+print("\nMissing TimeFrames:", bnb2["TimeFrame"].isna().sum())
+
+# Use the existing overall location-level bond record
+tenancy2 = tenancy[
+    (tenancy["Dwelling.Type"] == "ALL") &
+    (tenancy["Number.Of.Beds"] == "ALL")
+].copy()
+
+# Make dates and location IDs compatible with Airbnb
+tenancy2["TimeFrame"] = (
+    pd.to_datetime(tenancy2["TimeFrame"])
+    .dt.strftime("%Y-%m-%d")
+)
+
+bnb2["area_code"] = pd.to_numeric(
+    bnb2["area_code"],
+    errors="coerce"
+).astype("Int64")
+
+tenancy2["Location.Id"] = pd.to_numeric(
+    tenancy2["Location.Id"],
+    errors="coerce"
+).astype("Int64")
+
+# Rename only the columns already used later in the script
+tenancy2 = tenancy2.rename(columns={
+    "Median.Rent": "Weekly_Rent",
+    "Active.Bonds": "Active_Bonds"
+})
+
+print(
+    "\nDuplicate tenancy location-time keys:",
+    tenancy2.duplicated(["Location.Id", "TimeFrame"]).sum()
+)
+
+# Convert weekly long-term rent to nightly equivalent
 tenancy2["Daily_Rent"] = tenancy2["Weekly_Rent"] / 7
 
-# Inner join the datasets based on time and location
 combined = bnb2.merge(
     tenancy2,
     left_on=["area_code", "TimeFrame"],
     right_on=["Location.Id", "TimeFrame"],
-    how="inner",
+    how="left",
+    validate="many_to_one",
+    indicator=True
 )
+
+print("\nAirbnb rows before join:", len(bnb2))
+print("Rows after join:", len(combined))
+
+print("\nJoin results:")
+print(combined["_merge"].value_counts())
+
+matched_percent = (
+    (combined["_merge"] == "both").mean() * 100
+)
+
+print(f"\nMatched Airbnb rows: {matched_percent:.1f}%")
+
+# Keep only matched rows for the rent-gap analysis
+combined = combined[
+    combined["_merge"] == "both"
+].copy()
 
 # Median AirBnB price in CHC Central
 median_price_chc_central = (
@@ -55,10 +132,11 @@ combined["Rent_Gap"] = combined["price"] - combined["Daily_Rent"]
 gaps = (
     combined.groupby("area_code", as_index=False)
     .agg(
-        Gap=("Rent_Gap", "median"),
-        Crazy_Gap=("Rent_Gap", "max"),
+        Median_Gap=("Rent_Gap", "median"),
+        Maximum_Gap=("Rent_Gap", "max"),
+        Observations=("Rent_Gap", "count"),
     )
-    .sort_values("Gap", ascending=False)
+    .sort_values("Median_Gap", ascending=False)
 )
 
 # Comparing the number of AirBnB and rental properties in each area
@@ -85,3 +163,15 @@ print(gaps.head(10).to_string(index=False))
  
 print("\nProperty counts sample:")
 print(property_counts.head(10).to_string(index=False))
+
+largest_typical = gaps.iloc[0]
+
+largest_single = gaps.loc[
+    gaps["Maximum_Gap"].idxmax()
+]
+
+print("\nArea with largest median rent gap:")
+print(largest_typical.to_string())
+
+print("\nArea with largest single rent gap:")
+print(largest_single.to_string())
