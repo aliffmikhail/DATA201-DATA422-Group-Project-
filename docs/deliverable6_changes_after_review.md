@@ -382,23 +382,25 @@ Additional sections can be added below as the remaining team members complete th
 
 ### File or Component Reviewed
 
-_To be completed._
+scripts/Deliverable3_Visualization.py
 
 ### Reviewer
 
-_To be completed._
+Dron Dalvi
 
 ### Coding Practices Considered
 
-_To be completed._
+- Help collaboration
+- Save Time
+- Mark sections  
 
 ### Changes Made
 
-_To be completed._
+- Added comments to explain each part of the code 
 
 ### Reason for Changes
 
-_To be completed._
+- To help third person to understand what's happening in the code who have no idea about it 
 
 ### Sanity Checks
 
