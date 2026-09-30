@@ -402,6 +402,4 @@ Dron Dalvi
 
 - To help third person to understand what's happening in the code who have no idea about it 
 
-### Sanity Checks
 
-_To be completed._
