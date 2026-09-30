@@ -24,7 +24,8 @@ The changes are documented at a high level rather than line-by-line.
 | --- | --- | --- | --- |
 | `scripts/Deliverable5_areaoperations.py` | Muhammad Aliff Mikhail Bin Norkamarulazhar | Sanity checking, self-documenting code, clear pipeline interfaces | Reviewed; no additional Deliverable 6 code changes required |
 | `scripts/area_code.py` | Asfa Hurin Binti Asmawi | Self-documenting code, sanity checking, file headers | File header and spatial validation function added |
-| scripts/Deliverable3_Visualisations.py | Dron Dalvi | Help collaboration, save time, mark sections | comments in part of the code added |
+| 'scripts/Deliverable3_Visualization.py' | Dron Dalvi | Help collaboration, save time, mark sections | comments in part of the code added |
+| `scripts/Deliverable4_DataCleaning.py script.` | Abdurrahman Rais Fadhil | Self-documenting code, sanity checking, file headers | File header and validation function added |
 
 ---
 
