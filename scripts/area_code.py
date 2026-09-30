@@ -1,26 +1,23 @@
 """
-DATA422 - Add Stats NZ area codes to Christchurch Airbnb data
+===============================================================================
+STATS NZ AREA CODE ENRICHMENT
+===============================================================================
+Purpose:
+    Enriches the Christchurch Airbnb dataset with Stats NZ SA2 area codes by 
+    querying the Koordinates API using unique latitude/longitude pairs.
 
-Input:
-    data/processed/christchurch_listings_2025_10_to_2026_06.csv
+Inputs:
+    - data/processed/christchurch_listings_2025_10_to_2026_06.csv
+    - Environment Variable: KOORDINATES_API_KEY
 
 Outputs:
-    Christchurch_coordinate_area_lookup.csv
-    Christchurch_Airbnb_with_area_codes.csv
-
-Process:
-    1. Load cleaned Airbnb dataset
-    2. Extract unique latitude/longitude pairs
-    3. Query Koordinates for each unique coordinate
-    4. Extract Stats NZ SA2 area code
-    5. Save coordinate lookup
-    6. Merge area codes back into Airbnb dataset
-    7. Save final dataset
+    - Christchurch_coordinate_area_lookup.csv (Cached coordinate-to-SA2 mapping)
+    - Christchurch_Airbnb_with_area_codes.csv (Enriched Airbnb dataset)
+===============================================================================
 """
 
 import os
 import time
-
 import pandas as pd
 import requests
 
@@ -52,7 +49,7 @@ AREA_CODE_FIELD = "SA22026_V1_00"
 
 
 # ============================================================
-# 3. API KEY
+# 3. API KEY VALIDATION
 # ============================================================
 
 API_KEY = os.environ.get(
@@ -485,3 +482,26 @@ if __name__ == "__main__":
     print(
         "area-code/time join."
     )
+
+def validate_spatial_data(df: pd.DataFrame, lookup_df: pd.DataFrame) -> None:
+    """
+    Sanity checks for coordinate bounds and merge integrity in area_code.py.
+    """
+    # Check 1: Geographically valid boundaries for Christchurch
+    LAT_BOUNDS = (-44.2, -43.2)
+    LON_BOUNDS = (171.8, 173.5)
+    
+    invalid_coords = df[
+        ~df["latitude"].between(*LAT_BOUNDS) | 
+        ~df["longitude"].between(*LON_BOUNDS)
+    ]
+    if not invalid_coords.empty:
+        print(f"⚠️ SANITY WARNING: Found {len(invalid_coords)} rows with coordinates outside Canterbury region.")
+
+    # Check 2: API hit-rate threshold check
+    success_rate = lookup_df["area_code"].notna().mean() * 100
+    print(f"🔍 SANITY CHECK: Spatial Lookup Match Rate = {success_rate:.2f}%")
+    assert success_rate > 50.0, f"Critical Failure: Match rate ({success_rate:.2f}%) below 50% threshold!"
+
+    # Check 3: Merge Row Count Integrity (Input Rows == Output Rows)
+    assert len(df) == len(lookup_df), "Merge Error: Output dataset row count does not match input!"
