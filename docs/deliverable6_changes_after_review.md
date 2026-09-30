@@ -313,6 +313,67 @@ The team followed the following principles while reviewing the code:
 
 ---
 
+### File or Component Reviewed
+
+Deliverable4_DataCleaning.py script.
+
+### Reviewer
+
+Abdurrahman Rais Fadhil
+
+### Coding Practices Considered
+
+- **File Header:** Added description on the top of the code to describe the input, output and how the code works.
+
+- **Self-documenting code:** a structured module header describing purpose, dependencies, inputs, outputs and processing steps.
+
+
+### Changes Made
+
+1. Added a structured production header documenting the script's purpose, dependencies (Python 3, pandas, os), inputs (file path and required and optional columns), outputs (cleaned CSV and console report), processing steps, and sanity-check behavior.
+2. Added a `REQUIRED_COLUMNS` constant listing the columns the cleaning logic depends on.
+3. Added a `_require(condition, message)` helper that raises a `ValueError` prefixed with "Sanity check failed:".
+4. Added sanity checks before loading, after loading, after each cleaning step, and after export (listed under Sanity Checks).
+5. Left unchanged: the function signature, `FILE_PATH` / `OUTPUT_PATH`, all cleaning logic, the price cap, audit report text, and output file format.
+
+### Reason for Changes
+
+The original script only checked that the input file existed. Several realistic data problems would have passed through unnoticed or failed with unclear errors:
+
+- A price stored as text (e.g. `"$120.00"`) would break the price filter with a confusing pandas comparison error.
+- A header-only CSV would crash with a `ZeroDivisionError` in the retention-rate calculation.
+- A missing column would raise a bare `KeyError` with no context.
+- Negative or impossible values would be written silently to the cleaned dataset.
+- An output path equal to the input path would overwrite the raw data.
+
+The new checks turn these into immediate, descriptive errors. The header makes the script's purpose and contract clear to anyone maintaining or reusing it.
+
+### Sanity Checks
+
+**Before loading**
+- `file_path` and `output_path` are non-empty strings.
+- `output_path` is not the same as `file_path` (protects the raw input).
+- The input exists, is a file, and is not 0 bytes.
+
+**After loading**
+- The dataset contains at least one data row (this also prevents division by zero in the retention rate).
+- All required columns are present: `id`, `host_id`, `host_name`, `reviews_per_month`, `minimum_nights`, `price`.
+- `price`, `reviews_per_month` and `minimum_nights` are numeric dtypes.
+- No negative `price` or `reviews_per_month`, and no `minimum_nights` below 1.
+
+**After filling missing values**
+- The `minimum_nights` median exists, so the column isn't entirely empty.
+- No nulls remain in the filled columns.
+- The row count is unchanged.
+
+**After dropping columns**
+- `license` and `neighbourhood_group` are gone.
+- All required columns are still present.
+
+**After price cleaning**
+- No missing prices remain.
+
+
 # Remaining Team Reviews
 
 Additional sections can be added below as the remaining team members complete their assigned reviews.
