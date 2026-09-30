@@ -46,6 +46,8 @@ Sanity checks:
     columns, has non-numeric or impossible values, or if any cleaning step
     produces an inconsistent result. Checks never alter the data; for valid
     input the outputs are identical to the unchecked version.
+
+    This code was produced with the help of Claude AI.
 ===============================================================================
 """
 
