@@ -1,32 +1,24 @@
-import os
+from pathlib import Path
+
 import pandas as pd
 
-# Define paths
-processed_folder = "data/processed"
-output_file = os.path.join(processed_folder, "christchurch_listings_2025_10_to_2026_06.csv")
+PROCESSED_DIR = Path("data/processed")
+OUTPUT_FILE = PROCESSED_DIR / "christchurch_listings_combined.csv"
 
-# List all 9 processed Christchurch files
-files = [
-    "christchurch_2025_10.csv",
-    "christchurch_2025_11.csv",
-    "christchurch_2025_12.csv",
-    "christchurch_2026_01.csv",
-    "christchurch_2026_02.csv",
-    "christchurch_2026_03.csv",
-    "christchurch_2026_04.csv",
-    "christchurch_2026_05.csv",
-    "christchurch_2026_06.csv",
-]
+# Matches only monthly files like christchurch_2026_07.csv.
+# The combined files (christchurch_listings_...) don't match this pattern.
+monthly_files = sorted(
+    f for f in PROCESSED_DIR.glob("christchurch_????_??.csv")
+    if f != OUTPUT_FILE
+)
 
-# Read and load each dataset
-dataframes = []
-for file_name in files:
-    file_path = os.path.join(processed_folder, file_name)
-    df = pd.read_csv(file_path)
-    dataframes.append(df)
+if not monthly_files:
+    raise FileNotFoundError("No monthly Christchurch files found.")
 
-# Concatenate all dataframes into one
-combined_df = pd.concat(dataframes, ignore_index=True)
+frames = [pd.read_csv(f) for f in monthly_files]
+combined = pd.concat(frames, ignore_index=True)
+combined.to_csv(OUTPUT_FILE, index=False)
 
-# Save the combined dataset
-combined_df.to_csv(output_file, index=False)
+print(f"Combined {len(monthly_files)} monthly files")
+print(f"Rows: {len(combined):,}")
+print(f"Saved: {OUTPUT_FILE}")
