@@ -12,7 +12,7 @@ Dependencies:
     - os       (standard library)
 
 Inputs:
-    - FILE_PATH   : data/processed/christchurch_listings_2025_10_to_2026_06.csv
+    - FILE_PATH   : data/processed/christchurch_listings_combined.csv
         Required columns:
             id, host_id          -> read as strings (preserves large IDs)
             host_name            -> text
@@ -23,7 +23,7 @@ Inputs:
             license, neighbourhood_group
 
 Outputs:
-    - OUTPUT_PATH : data/processed/christchurch_listings_2025_10_to_2026_06_cleaned.csv
+    - OUTPUT_PATH : data/processed/christchurch_listings_combined_cleaned.csv
         Same columns as the input minus license / neighbourhood_group, with
         missing values filled, no missing prices, and price <= 1500. Written
         without the pandas index.
@@ -181,6 +181,25 @@ def clean_airbnb_dataset(file_path, output_path):
     )
 
     # 5. Handle Missing Prices (Rows Lost)
+
+    # Identify months where every listing has a missing price
+    missing_price_by_month = (
+        df.groupby("month_year")["price"]
+        .agg(
+            total_rows="size",
+            missing_prices=lambda x: x.isna().sum()
+        )
+    )
+
+    fully_missing_price_months = (
+        missing_price_by_month[
+            missing_price_by_month["missing_prices"]
+            == missing_price_by_month["total_rows"]
+        ]
+        .index
+        .tolist()
+    )
+
     df_clean = df.dropna(subset=["price"]).copy()
     rows_after_null_drop = len(df_clean)
     null_price_lost = initial_rows - rows_after_null_drop
@@ -220,7 +239,14 @@ def clean_airbnb_dataset(file_path, output_path):
     print("📊 DATA CLEANING AUDIT REPORT")
     print("=" * 50)
     print(f"Starting Rows:               {initial_rows}")
-    print(f"Rows Lost (Missing Prices): -{null_price_lost} (Includes 100% of Dec, Jan, Feb)")
+    print(f"Rows Lost (Missing Prices): -{null_price_lost}")
+    if fully_missing_price_months:
+        print(
+            "Months with 100% missing prices: "
+            + ", ".join(fully_missing_price_months)
+        )
+    else:
+        print("Months with 100% missing prices: None")
     print(f"Rows Lost (Prices > ${price_cap:,.0f}): -{outliers_lost}")
     print("-" * 50)
     print(f"Final Cleaned Rows:          {final_rows}")

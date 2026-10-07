@@ -273,3 +273,62 @@ The Airbnb mapping uses the Stats NZ SA2 2026 geographic field, while the rental
 This difference may contribute to unmatched area codes and should be considered when interpreting the 76.4% join rate.
 
 Airbnb prices are advertised nightly short-term accommodation prices, while rental bond median rents represent weekly long-term rental prices. Dividing weekly rent by seven provides a daily comparison unit, but the two values still represent different rental markets.
+
+# Deliverable 7 - Automated Airbnb Pipeline
+
+The Airbnb workflow has been updated so that new monthly Christchurch datasets can be processed and the downstream outputs regenerated from a single command:
+
+```bash
+python scripts/run_airbnb_pipeline.py
+```
+
+The automated pipeline runs the following stages in sequence:
+
+1. Prepare new monthly Christchurch Airbnb datasets.
+2. Concatenate the available monthly datasets.
+3. Clean the combined Airbnb dataset.
+4. Add Stats NZ SA2 area codes.
+5. Generate summary statistics.
+6. Regenerate the required visualisations.
+
+## Incremental Area-Code Processing
+
+`Christchurch_coordinate_area_lookup.csv` is used as a persistent cache of previously resolved latitude/longitude-to-SA2 mappings.
+
+Coordinates that have already been successfully mapped are reused. Only previously unseen or unresolved coordinates are sent to the Koordinates API. Successful new mappings are added to the cache so that later pipeline runs do not repeat the same API requests.
+
+For the current combined dataset, all **3,927 unique coordinate pairs** were available in the cache on the repeat pipeline run, meaning **0 new Koordinates API queries** were required.
+
+If new coordinates require querying, each user should store their own Koordinates API key in a local `.env` file:
+
+```text
+KOORDINATES_API_KEY=YOUR_API_KEY
+```
+
+The `.env` file is excluded from Git and must not be committed.
+
+## Airbnb Scrape Dates
+
+The `days_since_last_review` calculation uses the actual publication/scrape date associated with each monthly Inside Airbnb dataset.
+
+These dates are stored separately in:
+
+```text
+config/airbnb_scrape_dates.csv
+```
+
+rather than being hard-coded inside the visualisation script.
+
+When another monthly Airbnb dataset is added, its corresponding Inside Airbnb scrape date should also be added to this configuration file.
+
+## Validation
+
+The automated workflow includes checks for required columns, coordinate bounds, duplicate spatial lookup keys, spatial lookup match rate, preservation of Airbnb row counts during spatial enrichment, and missing scrape-date metadata.
+
+Critical validation failures stop the pipeline instead of silently allowing inconsistent outputs to continue.
+
+For further implementation details, see:
+
+```text
+docs/deliverable7_automation.md
+```

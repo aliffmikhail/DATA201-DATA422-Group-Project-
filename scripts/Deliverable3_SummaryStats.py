@@ -1,8 +1,13 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+from pathlib import Path
 from tabulate import tabulate
 
+OUTPUT_DIR = Path("outputs")
+OUTPUT_DIR.mkdir(exist_ok=True)
+
 # Load the combined Christchurch dataset
-file_path = "data/processed/christchurch_listings_2025_10_to_2026_06.csv"
+file_path = "data/processed/christchurch_listings_combined.csv"
 df = pd.read_csv(file_path)
 
 # ==========================================
@@ -76,6 +81,50 @@ else:
     )
 print("-" * 50)
 
+# ==========================================
+# MISSING VALUES BY MONTH
+# ==========================================
+
+print("\nMissing Values by Month:")
+
+monthly_missing = (
+    df.isna()
+    .groupby(df["month_year"])
+    .sum()
+)
+
+monthly_missing = monthly_missing.loc[
+    :, (monthly_missing > 0).any()
+]
+
+print(monthly_missing)
+print("-" * 50)
+
+if not monthly_missing.empty:
+    plt.figure(figsize=(10, 6))
+
+    for col in monthly_missing.columns:
+        plt.plot(
+            monthly_missing.index,
+            monthly_missing[col],
+            marker="o",
+            label=col
+        )
+
+    plt.title("Missing Values per Column by Month (Christchurch)")
+    plt.xlabel("Month")
+    plt.ylabel("Count of Missing Values")
+    plt.xticks(rotation=45)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.tight_layout()
+
+    plt.savefig(
+        OUTPUT_DIR / "missing_values_by_month.png"
+    )
+
+    plt.close()
+
+    print("Missing-value plot saved.")
 # ==========================================
 # 5. CATEGORICAL COLUMNS SUMMARY
 # ==========================================
