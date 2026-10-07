@@ -7,7 +7,7 @@ from datetime import datetime
 # CONFIG - adjust these paths/column names to match your actual data
 # ---------------------------------------------------------------------------
 NZ_WIDE_PATH = "data/raw/listings.csv"
-CHRISTCHURCH_PATH = "data/processed/christchurch_listings_2025_10_to_2026_06.csv"
+CHRISTCHURCH_PATH = "data/processed/christchurch_listings_combined.csv"
 
 PRICE_COL = "price"
 REVIEWS_COL = "number_of_reviews"
@@ -96,32 +96,39 @@ print("Price histograms saved.")
 # ---------------------------------------------------------------------------
 print("Calculating days_since_last_review using per-month scrape dates...")
 
-# Map each month's processed file to its actual scrape date
-SCRAPE_DATES = {
-    "christchurch_2025_10.csv": "2025-10-05",
-    "christchurch_2025_11.csv": "2025-11-07",
-    "christchurch_2025_12.csv": "2025-12-11",
-    "christchurch_2026_01.csv": "2026-01-16",
-    "christchurch_2026_02.csv": "2026-02-13",
-    "christchurch_2026_03.csv": "2026-03-17",
-    "christchurch_2026_04.csv": "2026-04-16",
-    "christchurch_2026_05.csv": "2026-05-23",
-    "christchurch_2026_06.csv": "2026-06-19",
-}
+# Load the actual Inside Airbnb scrape date for each month
+SCRAPE_DATES_PATH = "config/airbnb_scrape_dates.csv"
 
-PROCESSED_DIR = Path("data/processed")
+scrape_dates = pd.read_csv(SCRAPE_DATES_PATH)
 
-monthly_frames = []
-for filename, scrape_date in SCRAPE_DATES.items():
-    filepath = PROCESSED_DIR / filename
-    if filepath.exists():
-        month_df = pd.read_csv(filepath)
-        month_df["scrape_date"] = pd.to_datetime(scrape_date)
-        monthly_frames.append(month_df)
-    else:
-        print(f"Warning: {filepath} not found, skipping.")
+scrape_dates["scrape_date"] = pd.to_datetime(
+    scrape_dates["scrape_date"]
+)
 
-tagged_df = pd.concat(monthly_frames, ignore_index=True)
+# Add the correct scrape date to each listing-month
+tagged_df = chc_df.merge(
+    scrape_dates,
+    on="month_year",
+    how="left",
+    validate="many_to_one"
+)
+
+# Stop if any month is missing its real scrape date
+missing_scrape_dates = (
+    tagged_df.loc[
+        tagged_df["scrape_date"].isna(),
+        "month_year"
+    ]
+    .dropna()
+    .unique()
+)
+
+if len(missing_scrape_dates) > 0:
+    raise ValueError(
+        "Missing scrape dates for month(s): "
+        + ", ".join(map(str, missing_scrape_dates))
+    )
+
 tagged_df[LAST_REVIEW_COL] = pd.to_datetime(tagged_df[LAST_REVIEW_COL], errors="coerce")
 tagged_df["days_since_last_review"] = (tagged_df["scrape_date"] - tagged_df[LAST_REVIEW_COL]).dt.days
 
