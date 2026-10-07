@@ -47,7 +47,8 @@ Sanity checks:
     produces an inconsistent result. Checks never alter the data; for valid
     input the outputs are identical to the unchecked version.
 
-    This code was produced with the help of Claude AI.
+    This code was produced with the help of AI. I used AI to generate boilerplate code. 
+    I reviewed and tested the code to ensure it meets the requirements and is free of errors.
 ===============================================================================
 """
 
@@ -55,8 +56,8 @@ import os
 import pandas as pd
 
 # Define paths
-FILE_PATH = "data/processed/christchurch_listings_2025_10_to_2026_06.csv"
-OUTPUT_PATH = "data/processed/christchurch_listings_2025_10_to_2026_06_cleaned.csv"
+FILE_PATH = "data/processed/christchurch_listings_combined.csv"
+OUTPUT_PATH = "data/processed/christchurch_listings_combined_cleaned.csv"
 
 # Columns the cleaning logic depends on
 REQUIRED_COLUMNS = [
