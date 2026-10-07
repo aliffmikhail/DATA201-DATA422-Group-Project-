@@ -183,6 +183,59 @@ def query_coordinate(coordinate):
             None
         )
 
+import os
+from pathlib import Path
+
+import pandas as pd
+
+# Coordinates are rounded to 6 decimals (~10 cm) only when comparing with
+# the cache, so tiny float differences don't make cached points look new.
+COORD_DECIMALS = 6
+
+# Never accepted as a real area code (counted as a failed lookup instead).
+PLACEHOLDER_CODES = {"", "unknown", "n/a", "na", "none", "null", "nan"}
+
+# False = any failed lookup stops the pipeline before it claims success.
+ALLOW_PARTIAL_LOOKUP = False
+
+
+def empty_lookup():
+    """Empty lookup table with the right column types."""
+    return pd.DataFrame({
+        "latitude": pd.Series(dtype="float64"),
+        "longitude": pd.Series(dtype="float64"),
+        "area_code": pd.Series(dtype="object"),
+    })
+
+
+def is_missing_code(value):
+    """True if an area code is missing or a placeholder like 'Unknown'."""
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip().lower() in PLACEHOLDER_CODES
+
+
+def query_one_safely(lat, lon):
+    """
+    Calls existing query function and turns any failure into a reason.
+    Returns (area_code, None) on success or (None, reason) on failure.
+    """
+    api_key = os.environ.get("KOORDINATES_API_KEY", "")
+    try:
+        code = query_coordinate(lat, lon)  
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"
+        if api_key:
+            reason = reason.replace(api_key, "***REDACTED***")  # never print the key
+        return None, reason
+    if is_missing_code(code):
+        return None, f"No area code returned (got {code!r})"
+    return str(code).strip(), None
 
 # ============================================================
 # 5. MAIN PROGRAM
@@ -243,127 +296,133 @@ if __name__ == "__main__":
     # GET UNIQUE COORDINATES
     # ========================================================
 
-    coordinates = (
-        data[
-            [
-                "latitude",
-                "longitude"
-            ]
-        ]
-        .dropna()
-        .drop_duplicates()
-        .reset_index(drop=True)
-    )
+    # --- Load existing lookup as a cache ---
+    lookup_path = Path(LOOKUP_FILE)
+    if lookup_path.exists():
+        cached = pd.read_csv(lookup_path, dtype={"area_code": str})
+        cached = cached[["latitude", "longitude", "area_code"]].copy()
+        cached["latitude"] = pd.to_numeric(cached["latitude"], errors="coerce").round(COORD_DECIMALS)
+        cached["longitude"] = pd.to_numeric(cached["longitude"], errors="coerce").round(COORD_DECIMALS)
 
-    coordinate_list = list(
-        coordinates.itertuples(
-            index=False,
-            name=None
+        # Entries saved without a real code (e.g. 'Unknown') are re-queried
+        bad = (
+            cached["latitude"].isna()
+            | cached["longitude"].isna()
+            | cached["area_code"].apply(is_missing_code)
         )
+        if bad.any():
+            print(f"⚠️  {int(bad.sum())} cached entries have no valid area code; they will be re-queried.")
+        cached = cached[~bad].drop_duplicates(["latitude", "longitude"]).reset_index(drop=True)
+        print(f"🗂️  Loaded lookup cache: {len(cached)} known coordinate pairs.")
+    else:
+        cached = empty_lookup()
+        print("🗂️  No lookup cache found; starting a new one.")
+
+    known = set(zip(cached["latitude"], cached["longitude"]))
+
+    # --- Unique coordinates in the current dataset ---
+    coords = (
+        combined[["latitude", "longitude"]]
+        .apply(pd.to_numeric, errors="coerce")
+        .dropna()
+        .round(COORD_DECIMALS)
+        .drop_duplicates()
     )
 
-    print(
-        f"\nTotal Airbnb rows:"
-        f" {len(data):,}"
-    )
+    # --- Only coordinates not already in the cache ---
+    new_coords = [
+        (lat, lon)
+        for lat, lon in coords.itertuples(index=False, name=None)
+        if (lat, lon) not in known
+    ]
 
     print(
-        f"Unique coordinates to query:"
-        f" {len(coordinate_list):,}"
+        f"📍 Unique coordinate pairs: {len(coords)} | "
+        f"already cached: {len(coords) - len(new_coords)} | "
+        f"new to query: {len(new_coords)}"
     )
+    
 
     # ============================================================
     # QUERY KOORDINATES (sequential, no multiprocessing)
     # ============================================================
 
-    print("\nStarting Koordinates queries...")
+    results = []    # successful lookups this run
+    failures = []   # failed lookups this run, with reasons
+    total = len(new_coords)
 
-    start_time = time.time()
+    for i, (lat, lon) in enumerate(new_coords, start=1):
+        try:
+            code, reason = query_one_safely(lat, lon)
+        except KeyboardInterrupt:
+            print(f"\n⏹️  Interrupted after {i - 1}/{total} requests; saving what was found.")
+            break
 
-    results = []
+        if code is None:
+            failures.append({"latitude": lat, "longitude": lon, "reason": reason})
+            print(f"  ❌ ({lat}, {lon}) failed: {reason}")
+        else:
+            results.append({"latitude": lat, "longitude": lon, "area_code": code})
 
-    for i, coordinate in enumerate(coordinate_list):
-
-        print(f"Querying {i + 1}/{len(coordinate_list)}: {coordinate}", flush=True)
-
-        results.append(query_coordinate(coordinate))
-
-        if (i + 1) % 200 == 0:
-            print(f"Queried {i + 1:,} / {len(coordinate_list):,}")
-
-    elapsed_time = time.time() - start_time
-
-    print(f"\nQueries completed in: {elapsed_time:.1f} seconds")
+        if i % 100 == 0 or i == total:
+            print(f"   ... {i}/{total} done ({len(failures)} failed)")
 
     # ========================================================
     # CREATE LOOKUP TABLE
     # ========================================================
 
-    lookup = pd.DataFrame(
-        results,
-        columns=[
-            "latitude",
-            "longitude",
-            "area_code"
-        ]
-    )
+    new_lookup = pd.DataFrame(results, columns=["latitude", "longitude", "area_code"])
+
+    # Cached entries + new successes. Failed coordinates are NOT added,
+    # so they get no invented value and are retried next run.
+    frames = [f for f in (cached, new_lookup) if not f.empty]
+    lookup = pd.concat(frames, ignore_index=True) if frames else empty_lookup()
+    lookup = lookup.drop_duplicates(["latitude", "longitude"], keep="first").reset_index(drop=True)
+
+    if len(lookup) != len(cached) + len(new_lookup):
+        raise ValueError(
+            f"Lookup size mismatch: {len(lookup)} rows, "
+            f"expected {len(cached) + len(new_lookup)}."
+        )
+
+    
 
     # ========================================================
     # SAVE LOOKUP IMMEDIATELY
     # ========================================================
 
-    lookup.to_csv(
-        LOOKUP_FILE,
-        index=False
-    )
-
+    # Save to a temp file first, then swap it in, so an interrupted
+    # save can never corrupt the cache.
+    lookup_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = lookup_path.with_name(lookup_path.name + ".tmp")
+    lookup.to_csv(tmp_path, index=False)
+    os.replace(tmp_path, lookup_path)
     print(
-        f"\nSaved coordinate lookup:"
-        f" {LOOKUP_FILE}"
+        f"💾 Lookup saved: {len(lookup)} pairs "
+        f"({len(new_lookup)} added this run) -> {lookup_path}"
     )
 
     # ========================================================
     # CHECK QUERY RESULTS
     # ========================================================
 
-    successful = (
-        lookup["area_code"]
-        .notna()
-        .sum()
-    )
+    print("\n" + "=" * 50)
+    print("🔎 QUERY RESULTS")
+    print("=" * 50)
+    print(f"Coordinates reused from cache:  {len(coords) - len(new_coords)}")
+    print(f"New coordinates queried:        {len(new_coords)}")
+    print(f"  Successful:                   {len(results)}")
+    print(f"  Failed:                       {len(failures)}")
+    if new_coords:
+        print(f"  Success rate (this run):      {len(results) / len(new_coords) * 100:.2f}%")
+    print("=" * 50)
 
-    failed = (
-        lookup["area_code"]
-        .isna()
-        .sum()
-    )
-
-    print(
-        "\n" + "=" * 70
-    )
-
-    print(
-        "QUERY RESULTS"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        f"\nUnique coordinates:"
-        f" {len(lookup):,}"
-    )
-
-    print(
-        f"Area codes found:"
-        f" {successful:,}"
-    )
-
-    print(
-        f"Area codes missing:"
-        f" {failed:,}"
-    )
+    if failures:
+        print("⚠️  Failed coordinates (not cached, will be retried next run):")
+        for f in failures[:20]:
+            print(f"  - ({f['latitude']}, {f['longitude']}): {f['reason']}")
+        if len(failures) > 20:
+            print(f"  ... and {len(failures) - 20} more (see log above)")
 
     # ========================================================
     # SHOW SAMPLE RESULTS
@@ -383,23 +442,24 @@ if __name__ == "__main__":
     # MERGE AREA CODES INTO AIRBNB DATA
     # ========================================================
 
-    data = data.merge(
+    merged = combined.copy()
+    if "area_code" in merged.columns:
+        merged = merged.drop(columns=["area_code"])  # replaced with the full lookup
 
-        lookup[
-            [
-                "latitude",
-                "longitude",
-                "area_code"
-            ]
-        ],
+    # Match on rounded keys; the real latitude/longitude values are untouched
+    merged["_lat_key"] = pd.to_numeric(merged["latitude"], errors="coerce").round(COORD_DECIMALS)
+    merged["_lon_key"] = pd.to_numeric(merged["longitude"], errors="coerce").round(COORD_DECIMALS)
 
-        on=[
-            "latitude",
-            "longitude"
-        ],
+    merged = merged.merge(
+        lookup.rename(columns={"latitude": "_lat_key", "longitude": "_lon_key"}),
+        on=["_lat_key", "_lon_key"],
+        how="left",
+        validate="many_to_one",  # stops if the lookup has duplicate coordinates
+    ).drop(columns=["_lat_key", "_lon_key"])
 
-        how="left"
-    )
+    if len(merged) != len(combined):
+        raise ValueError(f"Row count changed during merge: {len(combined)} -> {len(merged)}.")
+
 
     # ========================================================
     # CHECK FINAL DATASET
@@ -454,6 +514,18 @@ if __name__ == "__main__":
     # ========================================================
     # FINAL CHECK
     # ========================================================
+    has_coords = merged["latitude"].notna() & merged["longitude"].notna()
+    unresolved = int((has_coords & merged["area_code"].isna()).sum())
+
+    if failures or unresolved:
+        problem = (
+            f"Area-code lookup is INCOMPLETE: {unresolved} row(s) with coordinates "
+            f"have no area code; {len(failures)} coordinate pair(s) failed this run. "
+            f"Successful results are cached; rerun to retry only the failed ones."
+        )
+        if not ALLOW_PARTIAL_LOOKUP:
+            raise RuntimeError(problem)
+        print("⚠️  WARNING: " + problem)
 
     print(
         "\n" + "=" * 70
