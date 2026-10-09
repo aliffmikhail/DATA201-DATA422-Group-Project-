@@ -129,7 +129,7 @@ if not monthly_missing.empty:
 # 5. CATEGORICAL COLUMNS SUMMARY
 # ==========================================
 print("\n🗂️ CATEGORICAL VALUE COUNTS:")
-categorical_columns = df.select_dtypes(include=["object"]).columns
+categorical_columns = df.select_dtypes(include=["object", "string"]).columns
 
 for column in categorical_columns:
     print(f"\n🔹 Feature: {column.upper()}")

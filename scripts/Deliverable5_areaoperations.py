@@ -4,24 +4,9 @@ import numpy as np
 # Import packages
 # (pandas + numpy cover dplyr-equivalent functionality)
 
-# Load final cleaned Airbnb data
+# Load the latest cleaned Airbnb dataset with SA2 area codes
 bnb = pd.read_csv(
-    "data/processed/christchurch_listings_2025_10_to_2026_06_cleaned.csv"
-)
-
-# Reuse the area codes that were already queried from Koordinates
-mapped_bnb = pd.read_csv("Christchurch_Airbnb_with_area_codes.csv")
-
-area_codes = (
-    mapped_bnb[["id", "month_year", "area_code"]]
-    .drop_duplicates(["id", "month_year"])
-)
-
-bnb = bnb.merge(
-    area_codes,
-    on=["id", "month_year"],
-    how="left",
-    validate="many_to_one"
+    "data/processed/Christchurch_Airbnb_with_area_codes.csv"
 )
 
 # Load final cleaned bond data from Deliverable 4
@@ -38,24 +23,37 @@ tenancy = tenancy.rename(columns={
     "Active Bonds": "Active.Bonds"
 })
 
-time_map = {
-    "2025-10": "2025-10-01",
-    "2025-11": "2025-10-01",
-    "2025-12": "2025-10-01",
-
-    "2026-01": "2026-01-01",
-    "2026-02": "2026-01-01",
-    "2026-03": "2026-01-01",
-
-    "2026-04": "2026-04-01",
-    "2026-05": "2026-04-01",
-    "2026-06": "2026-04-01"
-}
-
+# Convert each Airbnb month to its calendar-quarter start date.
+# Example:
+# 2025-10 -> 2025-10-01
+# 2026-02 -> 2026-01-01
+# 2026-07 -> 2026-07-01
 bnb2 = bnb.copy()
-bnb2["TimeFrame"] = bnb2["month_year"].map(time_map)
 
-print("\nMissing TimeFrames:", bnb2["TimeFrame"].isna().sum())
+month_dates = pd.to_datetime(
+    bnb2["month_year"],
+    format="%Y-%m",
+    errors="coerce"
+)
+
+if month_dates.isna().any():
+    bad_months = (
+        bnb2.loc[month_dates.isna(), "month_year"]
+        .dropna()
+        .unique()
+    )
+
+    raise ValueError(
+        "Invalid month_year values found: "
+        + ", ".join(map(str, bad_months))
+    )
+
+bnb2["TimeFrame"] = (
+    month_dates
+    .dt.to_period("Q")
+    .dt.start_time
+    .dt.strftime("%Y-%m-%d")
+)
 
 # Use the existing overall location-level bond record
 tenancy2 = tenancy[
@@ -67,6 +65,68 @@ tenancy2 = tenancy[
 tenancy2["TimeFrame"] = (
     pd.to_datetime(tenancy2["TimeFrame"])
     .dt.strftime("%Y-%m-%d")
+)
+
+# Only analyse Airbnb quarters for which bond data actually exists.
+# This prevents July/August 2026 from being assigned invented bond data.
+supported_timeframes = set(
+    tenancy2["TimeFrame"]
+    .dropna()
+    .unique()
+)
+
+unsupported_mask = ~bnb2["TimeFrame"].isin(
+    supported_timeframes
+)
+
+excluded_months = sorted(
+    bnb2.loc[
+        unsupported_mask,
+        "month_year"
+    ]
+    .dropna()
+    .unique()
+)
+
+excluded_rows = int(
+    unsupported_mask.sum()
+)
+
+if excluded_months:
+    print(
+        "\nAirbnb month(s) excluded from the rental bond comparison "
+        "because no matching bond reporting quarter is available:"
+    )
+    print(", ".join(excluded_months))
+    print(
+        f"Airbnb rows excluded from rental bond analysis: "
+        f"{excluded_rows:,}"
+    )
+
+bnb2 = bnb2.loc[
+    ~unsupported_mask
+].copy()
+
+if bnb2.empty:
+    raise RuntimeError(
+        "No Airbnb observations have matching bond "
+        "reporting periods."
+    )
+
+print(
+    "\nAirbnb months included in rental bond analysis:",
+    ", ".join(
+        sorted(
+            bnb2["month_year"]
+            .dropna()
+            .unique()
+        )
+    )
+)
+
+print(
+    f"Airbnb rows used in rental bond analysis: "
+    f"{len(bnb2):,}"
 )
 
 bnb2["area_code"] = pd.to_numeric(
@@ -92,6 +152,18 @@ print(
 
 # Convert weekly long-term rent to nightly equivalent
 tenancy2["Daily_Rent"] = tenancy2["Weekly_Rent"] / 7
+
+print(
+    "\n" + "=" * 60
+)
+
+print(
+    "AIRBNB VS RENTAL BOND ANALYSIS"
+)
+
+print(
+    "=" * 60
+)
 
 combined = bnb2.merge(
     tenancy2,
@@ -119,9 +191,11 @@ combined = combined[
     combined["_merge"] == "both"
 ].copy()
 
-# Median AirBnB price in CHC Central
 median_price_chc_central = (
-    bnb.loc[bnb["area_code"] == 326600, "price"]
+    bnb2.loc[
+        bnb2["area_code"] == 326600,
+        "price"
+    ]
     .median()
 )
 print(f"Median Airbnb Price: {median_price_chc_central}")

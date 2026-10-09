@@ -11,8 +11,8 @@ Inputs:
     - Environment Variable: KOORDINATES_API_KEY
 
 Outputs:
-    - Christchurch_coordinate_area_lookup.csv (Cached coordinate-to-SA2 mapping)
-    - Christchurch_Airbnb_with_area_codes.csv (Enriched Airbnb dataset)
+    - data/processed/Christchurch_coordinate_area_lookup.csv (Cached coordinate-to-SA2 mapping)
+    - data/processed/Christchurch_Airbnb_with_area_codes.csv (Enriched Airbnb dataset)
 ===============================================================================
 """
 
@@ -29,9 +29,9 @@ from dotenv import load_dotenv
 
 INPUT_FILE = "data/processed/christchurch_listings_combined_cleaned.csv"
 
-LOOKUP_FILE = "Christchurch_coordinate_area_lookup.csv"
+LOOKUP_FILE = "data/processed/Christchurch_coordinate_area_lookup.csv"
 
-OUTPUT_FILE = "Christchurch_Airbnb_with_area_codes.csv"
+OUTPUT_FILE = "data/processed/Christchurch_Airbnb_with_area_codes.csv"
 
 
 # ============================================================
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     print("=" * 70)
 
     print(
-        "DATA422 - ADDING STATS NZ AREA CODES"
+        "STATS NZ AREA CODE ENRICHMENT"
     )
 
     print("=" * 70)
