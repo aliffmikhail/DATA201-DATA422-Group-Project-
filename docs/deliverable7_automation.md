@@ -16,14 +16,15 @@ The objective is to reuse existing processed information where possible and only
 
 ## Pipeline Stages
 
-The master runner executes the following scripts in sequence:
+The master runner executes the following stages:
 
-1. `scripts/Deliverable3_DataPrep.py`
-2. `scripts/Deliverable3_Concatenate.py`
-3. `scripts/Deliverable4_DataCleaning.py`
-4. `scripts/area_code.py`
-5. `scripts/Deliverable3_SummaryStats.py`
-6. `scripts/Deliverable3_Visualisations.py`
+1. `Deliverable3_DataPrep.py` — prepares newly available monthly Airbnb data.
+2. `Deliverable3_Concatenate.py` — rebuilds the combined Christchurch dataset.
+3. `Deliverable4_DataCleaning.py` — cleans and validates the combined Airbnb dataset.
+4. `area_code.py` — reuses or extends the Stats NZ SA2 coordinate lookup.
+5. `Deliverable5_areaoperations.py` — runs the Airbnb-versus-rental-bond analysis for supported reporting periods.
+6. `Deliverable3_SummaryStats.py` — regenerates summary statistics.
+7. `Deliverable3_Visualisations.py` — regenerates visual outputs.
 
 The runner uses the same Python environment that launched it and stops if one of the stages fails.
 
@@ -74,7 +75,7 @@ Airbnb listings contain latitude and longitude but require Stats NZ SA2 area cod
 The pipeline uses:
 
 ```text
-Christchurch_coordinate_area_lookup.csv
+data/processed/Christchurch_coordinate_area_lookup.csv
 ```
 
 as a persistent coordinate-to-SA2 lookup cache.
@@ -99,6 +100,7 @@ For the current dataset:
 Unique coordinate pairs: 3927
 Already cached: 3927
 New to query: 0
+Persistent lookup entries: 4095
 ```
 
 This demonstrates that once the spatial cache has been updated, repeating the pipeline does not unnecessarily repeat Koordinates API requests.
@@ -113,6 +115,12 @@ Each user can create a local `.env` file in the repository root containing:
 
 ```text
 KOORDINATES_API_KEY=YOUR_API_KEY
+```
+
+Install the environment-variable loader in the active Python environment if required:
+
+```bash
+python -m pip install python-dotenv
 ```
 
 `python-dotenv` loads the value when required.
@@ -169,6 +177,8 @@ The July and August 2026 datasets use the Inside Airbnb dates:
 
 Downstream analysis scripts now read the stable combined Christchurch dataset rather than filenames containing a fixed end month.
 
+The automated workflow also runs the Airbnb-versus-rental-bond analysis after spatial enrichment. This stage uses only Airbnb observations whose calendar quarter has a corresponding reporting period in the cleaned rental-bond dataset.
+
 The summary-statistics stage also reports missing values by month and generates:
 
 ```text
@@ -207,8 +217,16 @@ This confirms that the workflow can be rerun on demand rather than requiring the
 
 ---
 
-## Scope
+## Rental Bond Analysis Scope
 
-Deliverable 7 automates the Airbnb processing and visualisation workflow.
+The Airbnb-versus-rental-bond analysis is included in the automated pipeline.
 
-The Deliverable 5 Airbnb-versus-rental-bond analysis is not automatically extended beyond June 2026 because the existing rental-bond comparison has a different temporal coverage. The previous Deliverable 5 results therefore remain documented separately.
+Airbnb `month_year` values are converted dynamically to their calendar-quarter start dates. These dates are then compared with the reporting periods actually available in the cleaned rental-bond dataset.
+
+Only Airbnb observations whose quarter has corresponding rental-bond data are included in the comparison.
+
+For the current datasets, July and August 2026 remain part of the main Airbnb pipeline but are excluded from the rental-bond comparison because the cleaned bond dataset does not contain a matching July 2026 reporting period.
+
+This prevents rental-bond values from being invented or carried forward into unsupported periods.
+
+If a future cleaned rental-bond dataset contains the corresponding reporting quarter, the relevant Airbnb observations can enter the comparison without extending another hard-coded month mapping.
